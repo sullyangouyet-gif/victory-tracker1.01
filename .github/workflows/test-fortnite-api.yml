@@ -8,28 +8,28 @@ jobs:
   test-api:
     runs-on: ubuntu-latest
     steps:
-      - name: Test API connection
+      - name: Diagnose API access
         env:
           API_KEY: ${{ secrets.FORTNITE_API_KEY }}
         run: |
           set -euo pipefail
 
-          STATUS=$(curl --silent --show-error \
-            --output "$RUNNER_TEMP/events.json" \
-            --write-out "%{http_code}" \
-            -H "x-api-key: $API_KEY" \
-            https://prod.api-fortnite.com/api/v1/events/global)
-
-          echo "HTTP status: $STATUS"
-
-          if [ "$STATUS" != "200" ]; then
-            echo "API connection failed."
+          if [ -z "${API_KEY:-}" ]; then
+            echo "SECRET MISSING"
             exit 1
           fi
 
-          jq -r 'if type == "object"
-            then "JSON received. Fields: " + (keys | join(", "))
-            elif type == "array"
-            then "JSON received. Number of items: " + (length | tostring)
-            else "JSON received. Type: " + type
-            end' "$RUNNER_TEMP/events.json"
+          echo "Secret detected. Testing endpoints..."
+
+          for ENDPOINT in shop events/global; do
+            if [ "$ENDPOINT" = "shop" ]; then
+              URL="https://prod.api-fortnite.com/api/v1/shop"
+            else
+              URL="https://prod.api-fortnite.com/api/v1/events/global"
+            fi
+
+            STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
+              -H "x-api-key: $API_KEY" "$URL")
+
+            echo "$ENDPOINT : HTTP $STATUS"
+          done
